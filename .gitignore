@@ -1,0 +1,28 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+build/
+dist/
+*.spec
+*.exe
+
+# Temp files
+*.mp3
+*.wav
+token.json
+client_secrets.json
+
+# Virtual Environment
+venv/
+.env/
+env/
+
+# Subproject
+tkstug_whiteboard_studio/
+
+# IDE
+.vscode/
+.idea/
