@@ -2,6 +2,7 @@ import sys
 import os
 import shutil
 import random
+import subprocess
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
@@ -98,7 +99,7 @@ class TTSWorker(QThread):
 class VietTTSApp(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("VietTTS - Công Cụ Đọc Văn Bản Tiếng Việt (Giọng Nữ, Nam Minh & Giọng Adam)")
+        self.setWindowTitle("VietTTS Studio - Chuyển Văn Bản Thành Giọng Nói Chuẩn CapCut / Premiere Pro")
         self.resize(950, 720)
         self.setMinimumSize(850, 650)
 
@@ -124,9 +125,9 @@ class VietTTSApp(QMainWindow):
         header_layout = QHBoxLayout(header_card)
         
         header_info = QVBoxLayout()
-        title_label = QLabel("🎙️ VietTTS - Chuyển Văn Bản Thành Giọng Nói")
+        title_label = QLabel("🎙️ VietTTS Studio - Chuyển Văn Bản Thành Giọng Nói AI")
         title_label.setObjectName("headerTitle")
-        sub_label = QLabel("Đọc văn bản Tiếng Việt tự động bằng trí tuệ nhân tạo (Giọng Nữ Hoài My, Giọng Nam Nam Minh & Giọng Adam)")
+        sub_label = QLabel("Tạo giọng đọc AI Tiếng Việt chuẩn Studio (44.1kHz / 320kbps) tương thích 100% CapCut, Premiere, Audacity, Canva...")
         sub_label.setObjectName("headerSubtitle")
         header_info.addWidget(title_label)
         header_info.addWidget(sub_label)
@@ -179,7 +180,6 @@ class VietTTSApp(QMainWindow):
 
         # Text Editor
         self.text_editor = QTextEdit()
-        self.text_editor.setObjectName("textEditor")
         self.text_editor.setPlaceholderText("Nhập hoặc dán văn bản tiếng Việt cần đọc tại đây...\n\nVí dụ: Xin chào! Chúc bạn một ngày làm việc tràn đầy năng lượng và hiệu quả.")
         editor_layout.addWidget(self.text_editor)
 
@@ -336,13 +336,19 @@ class VietTTSApp(QMainWindow):
         self.btn_stop = QPushButton("⏹ Dừng đọc")
         self.btn_stop.setObjectName("btnStop")
 
-        self.btn_export = QPushButton("💾 Xuất File MP3")
-        self.btn_export.setObjectName("btnExport")
+        self.btn_export_mp3 = QPushButton("💾 Xuất File MP3 (320kbps)")
+        self.btn_export_mp3.setObjectName("btnExport")
+        self.btn_export_mp3.setStyleSheet("background: #0284c7; color: white; font-weight: bold; padding: 10px 14px; border-radius: 6px;")
+
+        self.btn_export_wav = QPushButton("💾 Xuất WAV (Lossless)")
+        self.btn_export_wav.setObjectName("btnExportWav")
+        self.btn_export_wav.setStyleSheet("background: #475569; color: white; font-weight: bold; padding: 10px 14px; border-radius: 6px;")
 
         actions_row.addWidget(self.btn_play, stretch=2)
         actions_row.addWidget(self.btn_pause)
         actions_row.addWidget(self.btn_stop)
-        actions_row.addWidget(self.btn_export)
+        actions_row.addWidget(self.btn_export_mp3)
+        actions_row.addWidget(self.btn_export_wav)
 
         control_layout.addLayout(actions_row)
         main_layout.addWidget(control_card)
@@ -351,26 +357,22 @@ class VietTTSApp(QMainWindow):
         self.statusBar().showMessage("Sẵn sàng. Chọn giọng đọc, nhập văn bản và nhấn '► ĐỌC VĂN BẢN'")
 
     def connect_signals(self):
-        # Text Editor counters
         self.text_editor.textChanged.connect(self.update_counters)
 
-        # Sliders value change display
         self.slider_speed.valueChanged.connect(self.update_speed_label)
         self.slider_pitch.valueChanged.connect(self.update_pitch_label)
         self.slider_vol.valueChanged.connect(self.update_vol_label)
 
-        # Audio control buttons
         self.btn_play.clicked.connect(self.start_synthesis)
         self.btn_pause.clicked.connect(self.toggle_pause)
         self.btn_stop.clicked.connect(self.stop_audio)
-        self.btn_export.clicked.connect(self.export_mp3)
+        self.btn_export_mp3.clicked.connect(lambda: self.export_audio_action("mp3"))
+        self.btn_export_wav.clicked.connect(lambda: self.export_audio_action("wav"))
 
-        # Audio Player Signals
         self.audio_player.state_changed.connect(self.on_player_state_changed)
         self.audio_player.position_changed.connect(self.on_player_position_changed)
         self.audio_player.error_occurred.connect(self.on_player_error)
 
-        # Seek slider
         self.slider_progress.sliderMoved.connect(self.on_seek)
 
     def update_counters(self):
@@ -438,15 +440,12 @@ class VietTTSApp(QMainWindow):
         pitch = self.slider_pitch.value()
         volume = self.slider_vol.value()
 
-        # UI state updating
         self.btn_play.setEnabled(False)
         self.badge_status.setText("⚡ Đang tạo giọng...")
         self.statusBar().showMessage(f"Đang tổng hợp: {voice_name}...")
 
-        # Stop previous playback
         self.audio_player.stop()
 
-        # Worker thread execution
         self.worker = TTSWorker(
             tts_engine=self.tts_engine,
             text=text,
@@ -468,9 +467,8 @@ class VietTTSApp(QMainWindow):
         voice_name = voice_info.get("name", "Audio")
 
         self.badge_status.setText("🔊 Đang phát audio")
-        self.statusBar().showMessage(f"Đang phát: {voice_name}")
+        self.statusBar().showMessage(f"Đang phát: {voice_name} (Chuẩn Studio 320kbps)")
         
-        # Load and play audio file
         self.audio_player.load_and_play(audio_path)
 
     def on_synthesis_error(self, error_msg: str):
@@ -525,16 +523,35 @@ class VietTTSApp(QMainWindow):
     def on_player_error(self, error_str: str):
         self.statusBar().showMessage(f"Lỗi phát âm thanh: {error_str}")
 
-    def export_mp3(self):
+    def export_audio_action(self, format_type: str = "mp3"):
         if not self.current_audio_file or not os.path.exists(self.current_audio_file):
-            QMessageBox.warning(self, "Chưa có file âm thanh", "Vui lòng nhấn '► ĐỌC VĂN BẢN' trước khi xuất file MP3!")
+            QMessageBox.warning(self, "Chưa có file âm thanh", "Vui lòng nhấn '► ĐỌC VĂN BẢN' trước khi xuất file!")
             return
 
-        file_path, _ = QFileDialog.getSaveFileName(self, "Lưu file MP3", "viet_tts_audio.mp3", "Audio Files (*.mp3)")
+        default_name = f"viet_tts_studio.{format_type}"
+        file_filter = f"{format_type.upper()} Files (*.{format_type});;All Files (*)"
+        file_path, _ = QFileDialog.getSaveFileName(self, f"Lưu file {format_type.upper()} Chuẩn Studio", default_name, file_filter)
+        
         if file_path:
             try:
-                shutil.copyfile(self.current_audio_file, file_path)
-                QMessageBox.information(self, "Thành công", f"Đã xuất file âm thanh thành công tại:\n{file_path}")
+                self.statusBar().showMessage(f"Đang xuất file {format_type.upper()}...")
+                out = self.tts_engine.export_audio_file(self.current_audio_file, file_path)
+                
+                reply = QMessageBox.question(
+                    self,
+                    "Xuất File Thành Công",
+                    f"Đã xuất file âm thanh chuẩn Studio 100% tương thích CapCut / Premiere:\n{file_path}\n\nBạn có muốn mở thư mục chứa file ngay bây giờ không?",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                    QMessageBox.StandardButton.Yes
+                )
+                if reply == QMessageBox.StandardButton.Yes:
+                    folder = os.path.dirname(os.path.abspath(file_path))
+                    if sys.platform == "win32":
+                        os.startfile(folder)
+                    else:
+                        subprocess.Popen(["xdg-open", folder])
+                        
+                self.statusBar().showMessage(f"Đã lưu: {os.path.basename(file_path)}")
             except Exception as e:
                 QMessageBox.critical(self, "Lỗi xuất file", f"Không thể lưu file: {str(e)}")
 
